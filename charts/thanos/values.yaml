@@ -68,7 +68,7 @@ extraDeploy: []
 ##
 image:
   registry: docker.io
-  repository: bitnami/thanos
+  repository: bitnamilegacy/thanos
   tag: 0.39.2-debian-12-r2
   digest: ""
   ## ref: https://kubernetes.io/docs/concepts/containers/images/#pre-pulled-images
@@ -5149,7 +5149,7 @@ volumePermissions:
   ##
   image:
     registry: docker.io
-    repository: bitnami/os-shell
+    repository: bitnamilegacy/os-shell
     tag: 12-debian-12-r50
     digest: ""
     ## ref: https://kubernetes.io/docs/concepts/containers/images/#pre-pulled-images
