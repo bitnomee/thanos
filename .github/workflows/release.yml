@@ -174,7 +174,7 @@ jobs:
           BUILD_VERSION="${{ steps.chart_info.outputs.BUILD_VERSION }}"
 
           # Push to the expected OCI location
-          helm push "${CHART_NAME}-${BUILD_VERSION}.tgz" oci://${{ env.GCR }}/chart-${CHART_NAME}
+          helm push "${CHART_NAME}-${BUILD_VERSION}.tgz" oci://${{ env.GCR }}/charts
 
       - name: Create GitHub Release
         if: steps.chart_info.outputs.CREATE_RELEASE == 'true'
