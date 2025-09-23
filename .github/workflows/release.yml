@@ -1,0 +1,178 @@
+name: Release Chart
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., 1.0.0 or 1.0.0-rc1)'
+        required: false
+        type: string
+      sha:
+        description: 'Commit SHA to build from (alternative to tag)'
+        required: false
+        type: string
+
+env:
+  GCR: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  release:
+    permissions:
+      contents: write
+      packages: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.sha || github.ref }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.19.0'
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Determine chart info
+        id: chart_info
+        run: |
+          # Find the chart directory
+          CHART_DIR=$(find charts/ -name "Chart.yaml" -type f | head -1 | xargs dirname 2>/dev/null || echo "")
+          if [ -z "$CHART_DIR" ]; then
+            echo "No Chart.yaml found in charts/ directory"
+            exit 1
+          fi
+
+          echo "CHART_DIR=$CHART_DIR" >> $GITHUB_OUTPUT
+
+          # Extract chart name from Chart.yaml
+          CHART_NAME=$(yq eval '.name' "$CHART_DIR/Chart.yaml")
+          echo "CHART_NAME=$CHART_NAME" >> $GITHUB_OUTPUT
+
+          # Extract version from Chart.yaml
+          CHART_VERSION=$(yq eval '.version' "$CHART_DIR/Chart.yaml")
+          echo "CHART_VERSION=$CHART_VERSION" >> $GITHUB_OUTPUT
+
+          # Determine build type and version
+          if [ -n "${{ github.event.inputs.sha }}" ]; then
+            # SHA-based build
+            SHORT_SHA=$(echo "${{ github.event.inputs.sha }}" | cut -c1-7)
+            BUILD_VERSION="${CHART_VERSION}-${SHORT_SHA}"
+            IS_PRERELEASE="true"
+            CREATE_RELEASE="false"
+            echo "BUILD_TYPE=sha" >> $GITHUB_OUTPUT
+            echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_OUTPUT
+          elif [ -n "${{ github.event.inputs.tag }}" ]; then
+            # Manual tag release
+            TAG_NAME="${{ github.event.inputs.tag }}"
+            BUILD_VERSION="$TAG_NAME"
+            echo "BUILD_TYPE=manual_tag" >> $GITHUB_OUTPUT
+            CREATE_RELEASE="true"
+          else
+            # Automatic tag release
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            BUILD_VERSION="$TAG_NAME"
+            echo "BUILD_TYPE=auto_tag" >> $GITHUB_OUTPUT
+            CREATE_RELEASE="true"
+          fi
+
+          echo "BUILD_VERSION=$BUILD_VERSION" >> $GITHUB_OUTPUT
+          echo "CREATE_RELEASE=$CREATE_RELEASE" >> $GITHUB_OUTPUT
+
+          # For tag-based builds, validate semantic versioning format
+          if [ "${{ github.event.inputs.sha }}" = "" ]; then
+            if ! echo "$BUILD_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]*)?$'; then
+              echo "Error: Tag '$BUILD_VERSION' does not match semantic versioning format (x.y.z or x.y.z-rcN)"
+              exit 1
+            fi
+
+            # Determine if this is a release candidate
+            if [[ "$BUILD_VERSION" == *-rc* ]]; then
+              IS_PRERELEASE="true"
+            else
+              IS_PRERELEASE="false"
+            fi
+          fi
+
+          echo "IS_PRERELEASE=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          echo "TAG_NAME=${TAG_NAME:-$BUILD_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Validate Chart.yaml version (tag builds only)
+        if: github.event.inputs.sha == ''
+        run: |
+          TAG_VERSION="${{ steps.chart_info.outputs.BUILD_VERSION }}"
+          CHART_VERSION="${{ steps.chart_info.outputs.CHART_VERSION }}"
+
+          # For RC versions, check if Chart.yaml version matches the base version (without -rc suffix)
+          if [[ "$TAG_VERSION" == *-rc* ]]; then
+            BASE_VERSION=$(echo "$TAG_VERSION" | sed 's/-rc[0-9]*$//')
+            if [ "$CHART_VERSION" != "$BASE_VERSION" ]; then
+              echo "Error: Chart.yaml version ($CHART_VERSION) does not match base version of RC tag ($BASE_VERSION)"
+              echo "Please update Chart.yaml version to $BASE_VERSION before releasing $TAG_VERSION"
+              exit 1
+            fi
+            echo "✅ Chart.yaml version ($CHART_VERSION) matches base version of RC tag ($TAG_VERSION)"
+          else
+            # For regular versions, must match exactly
+            if [ "$CHART_VERSION" != "$TAG_VERSION" ]; then
+              echo "Error: Chart.yaml version ($CHART_VERSION) does not match tag ($TAG_VERSION)"
+              echo "Please update Chart.yaml version to match the tag before releasing"
+              exit 1
+            fi
+            echo "✅ Chart.yaml version ($CHART_VERSION) matches tag ($TAG_VERSION)"
+          fi
+
+      - name: Update Chart.yaml for SHA builds
+        if: github.event.inputs.sha != ''
+        run: |
+          BUILD_VERSION="${{ steps.chart_info.outputs.BUILD_VERSION }}"
+          yq eval '.version = "'"$BUILD_VERSION"'"' -i "${{ steps.chart_info.outputs.CHART_DIR }}/Chart.yaml"
+          echo "✅ Updated Chart.yaml version to $BUILD_VERSION for SHA build"
+
+      - name: Update dependencies
+        run: |
+          helm dependency update "${{ steps.chart_info.outputs.CHART_DIR }}"
+
+      - name: Lint chart
+        run: |
+          helm lint "${{ steps.chart_info.outputs.CHART_DIR }}"
+
+      - name: Package chart
+        run: |
+          helm package "${{ steps.chart_info.outputs.CHART_DIR }}" --destination .
+
+      - name: Login to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.GCR }} --username ${{ github.repository_owner }} --password-stdin
+
+      - name: Push chart to GHCR
+        run: |
+          CHART_NAME="${{ steps.chart_info.outputs.CHART_NAME }}"
+          BUILD_VERSION="${{ steps.chart_info.outputs.BUILD_VERSION }}"
+
+          # Push to the expected OCI location
+          helm push "${CHART_NAME}-${BUILD_VERSION}.tgz" oci://${{ env.GCR }}/chart-${CHART_NAME}
+
+      - name: Create GitHub Release
+        if: steps.chart_info.outputs.CREATE_RELEASE == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: "*.tgz"
+          generate_release_notes: true
+          prerelease: ${{ steps.chart_info.outputs.IS_PRERELEASE }}
+          name: ${{ steps.chart_info.outputs.TAG_NAME }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

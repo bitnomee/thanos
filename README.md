@@ -18,7 +18,7 @@ In order for it to be functional, `charts/thanos/` will need the following updat
 ## Installation
 
 ```bash
-helm install RELEASE_NAME oci://ghcr.io/bitnomee/chart-thanos
+helm install my-release oci://ghcr.io/bitnomee/chart-thanos
 ```
 
 ## Configuration
