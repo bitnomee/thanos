@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+*"
+    branches:
+      - "feat/releases"
   workflow_dispatch:
     inputs:
       tag:
@@ -68,12 +70,20 @@ jobs:
 
           # Determine build type and version
           if [ -n "${{ github.event.inputs.sha }}" ]; then
-            # SHA-based build
+            # SHA-based build from manual dispatch
             SHORT_SHA=$(echo "${{ github.event.inputs.sha }}" | cut -c1-7)
             BUILD_VERSION="${CHART_VERSION}-${SHORT_SHA}"
             IS_PRERELEASE="true"
             CREATE_RELEASE="false"
             echo "BUILD_TYPE=sha" >> $GITHUB_OUTPUT
+            echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_name }}" = "feat/releases" ]; then
+            # SHA-based build from feat/releases branch push
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            BUILD_VERSION="${CHART_VERSION}-${SHORT_SHA}"
+            IS_PRERELEASE="true"
+            CREATE_RELEASE="false"
+            echo "BUILD_TYPE=branch_sha" >> $GITHUB_OUTPUT
             echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_OUTPUT
           elif [ -n "${{ github.event.inputs.tag }}" ]; then
             # Manual tag release
@@ -93,7 +103,7 @@ jobs:
           echo "CREATE_RELEASE=$CREATE_RELEASE" >> $GITHUB_OUTPUT
 
           # For tag-based builds, validate semantic versioning format
-          if [ "${{ github.event.inputs.sha }}" = "" ]; then
+          if [ "${{ github.event.inputs.sha }}" = "" ] && [ "${{ github.ref_name }}" != "feat/releases" ]; then
             if ! echo "$BUILD_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]*)?$'; then
               echo "Error: Tag '$BUILD_VERSION' does not match semantic versioning format (x.y.z or x.y.z-rcN)"
               exit 1
@@ -111,7 +121,7 @@ jobs:
           echo "TAG_NAME=${TAG_NAME:-$BUILD_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Validate Chart.yaml version (tag builds only)
-        if: github.event.inputs.sha == ''
+        if: github.event.inputs.sha == '' && github.ref_name != 'feat/releases'
         run: |
           TAG_VERSION="${{ steps.chart_info.outputs.BUILD_VERSION }}"
           CHART_VERSION="${{ steps.chart_info.outputs.CHART_VERSION }}"
@@ -136,11 +146,15 @@ jobs:
           fi
 
       - name: Update Chart.yaml for SHA builds
-        if: github.event.inputs.sha != ''
+        if: github.event.inputs.sha != '' || github.ref_name == 'feat/releases'
         run: |
           BUILD_VERSION="${{ steps.chart_info.outputs.BUILD_VERSION }}"
           yq eval '.version = "'"$BUILD_VERSION"'"' -i "${{ steps.chart_info.outputs.CHART_DIR }}/Chart.yaml"
           echo "✅ Updated Chart.yaml version to $BUILD_VERSION for SHA build"
+
+      - name: Login to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.GCR }} --username ${{ github.repository_owner }} --password-stdin
 
       - name: Update dependencies
         run: |
@@ -154,17 +168,13 @@ jobs:
         run: |
           helm package "${{ steps.chart_info.outputs.CHART_DIR }}" --destination .
 
-      - name: Login to GitHub Container Registry
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.GCR }} --username ${{ github.repository_owner }} --password-stdin
-
       - name: Push chart to GHCR
         run: |
           CHART_NAME="${{ steps.chart_info.outputs.CHART_NAME }}"
           BUILD_VERSION="${{ steps.chart_info.outputs.BUILD_VERSION }}"
 
           # Push to the expected OCI location
-          helm push "${CHART_NAME}-${BUILD_VERSION}.tgz" oci://${{ env.GCR }}/chart-${CHART_NAME}
+          helm push "${CHART_NAME}-${BUILD_VERSION}.tgz" oci://${{ env.GCR }}/charts
 
       - name: Create GitHub Release
         if: steps.chart_info.outputs.CREATE_RELEASE == 'true'
