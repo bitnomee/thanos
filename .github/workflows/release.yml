@@ -8,7 +8,11 @@ on:
     inputs:
       tag:
         description: 'Tag to release (e.g., 1.0.0 or 1.0.0-rc1)'
-        required: true
+        required: false
+        type: string
+      sha:
+        description: 'Commit SHA to build from (alternative to tag)'
+        required: false
         type: string
 
 env:
@@ -25,6 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.inputs.sha || github.ref }}
 
       - name: Configure Git
         run: |
@@ -61,31 +66,54 @@ jobs:
           CHART_VERSION=$(yq eval '.version' "$CHART_DIR/Chart.yaml")
           echo "CHART_VERSION=$CHART_VERSION" >> $GITHUB_OUTPUT
 
-          # Determine tag name from either push event or workflow dispatch
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG_NAME="${{ github.event.inputs.tag }}"
-          else
-            TAG_NAME=${GITHUB_REF#refs/tags/}
-          fi
-
-          # Validate semantic versioning format
-          if ! echo "$TAG_NAME" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]*)?$'; then
-            echo "Error: Tag '$TAG_NAME' does not match semantic versioning format (x.y.z or x.y.z-rcN)"
-            exit 1
-          fi
-
-          # Determine if this is a release candidate
-          if [[ "$TAG_NAME" == *-rc* ]]; then
+          # Determine build type and version
+          if [ -n "${{ github.event.inputs.sha }}" ]; then
+            # SHA-based build
+            SHORT_SHA=$(echo "${{ github.event.inputs.sha }}" | cut -c1-7)
+            BUILD_VERSION="${CHART_VERSION}-${SHORT_SHA}"
             IS_PRERELEASE="true"
+            CREATE_RELEASE="false"
+            echo "BUILD_TYPE=sha" >> $GITHUB_OUTPUT
+            echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_OUTPUT
+          elif [ -n "${{ github.event.inputs.tag }}" ]; then
+            # Manual tag release
+            TAG_NAME="${{ github.event.inputs.tag }}"
+            BUILD_VERSION="$TAG_NAME"
+            echo "BUILD_TYPE=manual_tag" >> $GITHUB_OUTPUT
+            CREATE_RELEASE="true"
           else
-            IS_PRERELEASE="false"
+            # Automatic tag release
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            BUILD_VERSION="$TAG_NAME"
+            echo "BUILD_TYPE=auto_tag" >> $GITHUB_OUTPUT
+            CREATE_RELEASE="true"
           fi
-          echo "IS_PRERELEASE=$IS_PRERELEASE" >> $GITHUB_OUTPUT
-          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
 
-      - name: Validate Chart.yaml version
+          echo "BUILD_VERSION=$BUILD_VERSION" >> $GITHUB_OUTPUT
+          echo "CREATE_RELEASE=$CREATE_RELEASE" >> $GITHUB_OUTPUT
+
+          # For tag-based builds, validate semantic versioning format
+          if [ "${{ github.event.inputs.sha }}" = "" ]; then
+            if ! echo "$BUILD_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]*)?$'; then
+              echo "Error: Tag '$BUILD_VERSION' does not match semantic versioning format (x.y.z or x.y.z-rcN)"
+              exit 1
+            fi
+
+            # Determine if this is a release candidate
+            if [[ "$BUILD_VERSION" == *-rc* ]]; then
+              IS_PRERELEASE="true"
+            else
+              IS_PRERELEASE="false"
+            fi
+          fi
+
+          echo "IS_PRERELEASE=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          echo "TAG_NAME=${TAG_NAME:-$BUILD_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Validate Chart.yaml version (tag builds only)
+        if: github.event.inputs.sha == ''
         run: |
-          TAG_VERSION="${{ steps.chart_info.outputs.TAG_NAME }}"
+          TAG_VERSION="${{ steps.chart_info.outputs.BUILD_VERSION }}"
           CHART_VERSION="${{ steps.chart_info.outputs.CHART_VERSION }}"
 
           # For RC versions, check if Chart.yaml version matches the base version (without -rc suffix)
@@ -107,6 +135,13 @@ jobs:
             echo "✅ Chart.yaml version ($CHART_VERSION) matches tag ($TAG_VERSION)"
           fi
 
+      - name: Update Chart.yaml for SHA builds
+        if: github.event.inputs.sha != ''
+        run: |
+          BUILD_VERSION="${{ steps.chart_info.outputs.BUILD_VERSION }}"
+          yq eval '.version = "'"$BUILD_VERSION"'"' -i "${{ steps.chart_info.outputs.CHART_DIR }}/Chart.yaml"
+          echo "✅ Updated Chart.yaml version to $BUILD_VERSION for SHA build"
+
       - name: Update dependencies
         run: |
           helm dependency update "${{ steps.chart_info.outputs.CHART_DIR }}"
@@ -126,13 +161,13 @@ jobs:
       - name: Push chart to GHCR
         run: |
           CHART_NAME="${{ steps.chart_info.outputs.CHART_NAME }}"
-          TAG_VERSION="${{ steps.chart_info.outputs.TAG_NAME }}"
-          OWNER_ORG=$(echo "${{ github.repository }}" | cut -d'/' -f1)
+          BUILD_VERSION="${{ steps.chart_info.outputs.BUILD_VERSION }}"
 
           # Push to the expected OCI location
-          helm push "${CHART_NAME}-${TAG_VERSION}.tgz" oci://${{ env.GCR }}/chart-${CHART_NAME}
+          helm push "${CHART_NAME}-${BUILD_VERSION}.tgz" oci://${{ env.GCR }}/chart-${CHART_NAME}
 
       - name: Create GitHub Release
+        if: steps.chart_info.outputs.CREATE_RELEASE == 'true'
         uses: softprops/action-gh-release@v1
         with:
           files: "*.tgz"
