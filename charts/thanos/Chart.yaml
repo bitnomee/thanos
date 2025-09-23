@@ -36,4 +36,4 @@ keywords:
 name: thanos
 sources:
 - https://github.com/bitnami/charts/tree/main/bitnami/thanos
-version: 17.3.2
+version: 17.3.3
