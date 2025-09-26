@@ -72,7 +72,7 @@ jobs:
           if [ -n "${{ github.event.inputs.sha }}" ]; then
             # SHA-based build from manual dispatch
             SHORT_SHA=$(echo "${{ github.event.inputs.sha }}" | cut -c1-7)
-            BUILD_VERSION="${CHART_VERSION}-${SHORT_SHA}"
+            BUILD_VERSION="${CHART_VERSION}-sha${SHORT_SHA}"
             IS_PRERELEASE="true"
             CREATE_RELEASE="false"
             echo "BUILD_TYPE=sha" >> $GITHUB_OUTPUT
@@ -80,7 +80,7 @@ jobs:
           elif [ "${{ github.ref_name }}" = "feat/releases" ]; then
             # SHA-based build from feat/releases branch push
             SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-            BUILD_VERSION="${CHART_VERSION}-${SHORT_SHA}"
+            BUILD_VERSION="${CHART_VERSION}-sha${SHORT_SHA}"
             IS_PRERELEASE="true"
             CREATE_RELEASE="false"
             echo "BUILD_TYPE=branch_sha" >> $GITHUB_OUTPUT
@@ -158,7 +158,7 @@ jobs:
 
       - name: Update dependencies
         run: |
-          helm dependency update "${{ steps.chart_info.outputs.CHART_DIR }}"
+          helm dependency build "${{ steps.chart_info.outputs.CHART_DIR }}"
 
       - name: Lint chart
         run: |
