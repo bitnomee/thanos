@@ -178,7 +178,7 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.chart_info.outputs.CREATE_RELEASE == 'true'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: "*.tgz"
           generate_release_notes: true
