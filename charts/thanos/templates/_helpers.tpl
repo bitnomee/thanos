@@ -6,22 +6,6 @@ SPDX-License-Identifier: APACHE-2.0
 {{/* vim: set filetype=mustache: */}}
 
 {{/*
-Fully qualified app name for PostgreSQL
-*/}}
-{{- define "thanos.minio.fullname" -}}
-{{- if .Values.fullnameOverride -}}
-{{- printf "%s-minio" .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- $name := default .Chart.Name .Values.nameOverride -}}
-{{- if contains $name .Release.Name -}}
-{{- printf "%s-minio" .Release.Name | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- printf "%s-%s-minio" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
 Return the proper Thanos bucketweb fullname
 */}}
 {{- define "thanos.bucketweb.fullname" -}}
