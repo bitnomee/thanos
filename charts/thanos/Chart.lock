@@ -1,9 +1,9 @@
 dependencies:
 - name: minio
-  repository: oci://registry-1.docker.io/bitnamicharts
-  version: 17.0.19
+  repository: oci://ghcr.io/bitnomee/charts
+  version: 17.0.22
 - name: common
-  repository: oci://registry-1.docker.io/bitnamicharts
-  version: 2.31.4
-digest: sha256:294dcecc3125f591a6e2158d207ce3418746bbd0cccf057d477f47788929255b
-generated: "2025-08-13T18:18:49.570029863Z"
+  repository: oci://ghcr.io/bitnomee/charts
+  version: 2.31.5
+digest: sha256:109219e04c7c5dd243fcf7ecbcc578d3d9854d7e019c1080bd7bd24601bda95a
+generated: "2026-05-12T21:49:20.095802-04:00"
