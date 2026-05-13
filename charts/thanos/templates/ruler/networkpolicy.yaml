@@ -41,17 +41,6 @@ spec:
         - podSelector:
             matchLabels: {{- include "common.labels.matchLabels" ( dict "customLabels" $podLabels "context" $ ) | nindent 14 }}
               app.kubernetes.io/component: ruler
-    {{- if .Values.minio.enabled }}
-    # Communicate with minio
-    - ports:
-        - port: {{ .Values.minio.service.ports.api }}
-        - port: {{ .Values.minio.service.ports.api }}
-      to: 
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: minio
-              app.kubernetes.io/instance: {{ .Release.Name }}            
-    {{- end }}
     {{- if .Values.query.enabled }}
     # Communicate with query
     - ports:

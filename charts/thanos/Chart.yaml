@@ -12,10 +12,6 @@ annotations:
 apiVersion: v2
 appVersion: 0.41.0
 dependencies:
-- condition: minio.enabled
-  name: minio
-  repository: oci://ghcr.io/bitnomee/charts
-  version: ~17.0.22
 - name: common
   repository: oci://ghcr.io/bitnomee/charts
   version: ~2.31.5

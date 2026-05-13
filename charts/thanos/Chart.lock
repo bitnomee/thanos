@@ -1,9 +1,6 @@
 dependencies:
-- name: minio
-  repository: oci://ghcr.io/bitnomee/charts
-  version: 17.0.22
 - name: common
   repository: oci://ghcr.io/bitnomee/charts
   version: 2.31.5
-digest: sha256:109219e04c7c5dd243fcf7ecbcc578d3d9854d7e019c1080bd7bd24601bda95a
-generated: "2026-05-12T21:49:20.095802-04:00"
+digest: sha256:c1aec885cbd3744e0cf039420a9c82c9a33fb4619507e5e50900b99a192ba730
+generated: "2026-05-12T21:52:18.49198-04:00"

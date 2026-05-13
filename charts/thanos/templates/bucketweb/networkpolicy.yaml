@@ -33,17 +33,6 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    {{- if .Values.minio.enabled }}
-    # Communicate with minio
-    - ports:
-        - port: {{ .Values.minio.service.ports.api }}
-        - port: {{ .Values.minio.service.ports.api }}
-      to: 
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: minio
-              app.kubernetes.io/instance: {{ .Release.Name }}            
-    {{- end }}
     {{- if .Values.bucketweb.networkPolicy.extraEgress }}
     {{- include "common.tplvalues.render" ( dict "value" .Values.bucketweb.networkPolicy.extraEgress "context" $ ) | nindent 4 }}
     {{- end }}

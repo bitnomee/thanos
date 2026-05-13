@@ -54,17 +54,6 @@ spec:
               {{ else }}
               app.kubernetes.io/component: receive
               {{ end }}
-    {{- if .Values.minio.enabled }}
-    # Communicate with minio
-    - ports:
-        - port: {{ .Values.minio.service.ports.api }}
-        - port: {{ .Values.minio.service.ports.api }}
-      to: 
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: minio
-              app.kubernetes.io/instance: {{ .Release.Name }}
-    {{- end }}
     {{- if .Values.queryFrontend.enabled }}
     # Communicate with query-frontend
     - ports:
