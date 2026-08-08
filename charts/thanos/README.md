@@ -1,6 +1,6 @@
 # thanos
 
-![Version: 18.1.0](https://img.shields.io/badge/Version-18.1.0-informational?style=flat-square) ![AppVersion: 0.41.0](https://img.shields.io/badge/AppVersion-0.41.0-informational?style=flat-square)
+![Version: 18.1.1](https://img.shields.io/badge/Version-18.1.1-informational?style=flat-square) ![AppVersion: 0.42.4](https://img.shields.io/badge/AppVersion-0.42.4-informational?style=flat-square)
 
 Thanos is a highly available metrics system that can be added on top of existing Prometheus deployments, providing a global query view across all Prometheus installations.
 
@@ -311,7 +311,7 @@ Thanos is a highly available metrics system that can be added on top of existing
 | image.pullSecrets | list | `[]` |  |
 | image.registry | string | `"quay.io"` |  |
 | image.repository | string | `"thanos/thanos"` |  |
-| image.tag | string | `"v0.42.2"` |  |
+| image.tag | string | `"v0.42.4"` |  |
 | indexCacheConfig | string | `""` |  |
 | kubeVersion | string | `""` |  |
 | metrics.enabled | bool | `false` |  |
