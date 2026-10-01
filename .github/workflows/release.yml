@@ -181,6 +181,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: "*.tgz"
+          tag_name: ${{ steps.chart_info.outputs.TAG_NAME }}
           generate_release_notes: true
           prerelease: ${{ steps.chart_info.outputs.IS_PRERELEASE }}
           name: ${{ steps.chart_info.outputs.TAG_NAME }}
