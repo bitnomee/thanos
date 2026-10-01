@@ -6,7 +6,7 @@ annotations:
     - name: busybox
       image: docker.io/library/busybox:1.37.0
     - name: thanos
-      image: quay.io/thanos/thanos:v0.41.0
+      image: quay.io/thanos/thanos:v0.42.4
   licenses: Apache-2.0
   tanzuCategory: application
 apiVersion: v2
@@ -30,4 +30,4 @@ keywords:
 name: thanos
 sources:
 - https://github.com/bitnami/charts/tree/main/bitnami/thanos
-version: 18.1.1
+version: 18.1.2
